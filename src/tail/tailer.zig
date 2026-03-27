@@ -1,4 +1,5 @@
 const std = @import("std");
+const pretty = @import("../formatter/pretty.zig");
 
 /// Intervalo de polling em nanosegundos (250ms).
 const poll_interval_ns: u64 = 250 * std.time.ns_per_ms;
@@ -12,7 +13,6 @@ const poll_interval_ns: u64 = 250 * std.time.ns_per_ms;
 ///
 /// `std.time.sleep` suspende a thread pelo intervalo sem consumir CPU.
 pub fn run(allocator: std.mem.Allocator, path: []const u8) !void {
-    _ = allocator;
     const file = std.fs.cwd().openFile(path, .{}) catch |err| switch (err) {
         error.FileNotFound => {
             std.debug.print("Nenhum log encontrado. Use 'ziglog start' primeiro.\n", .{});
@@ -26,7 +26,7 @@ pub fn run(allocator: std.mem.Allocator, path: []const u8) !void {
     var pos = try file.getEndPos();
     try file.seekTo(pos);
 
-    std.debug.print("Aguardando novos logs...\n", .{});
+    pretty.printInfo("Aguardando novos logs...");
 
     while (true) {
         const end = try file.getEndPos();
@@ -37,7 +37,10 @@ pub fn run(allocator: std.mem.Allocator, path: []const u8) !void {
 
             // Lê apenas os bytes novos desde `pos`
             while (try reader.interface.takeDelimiter('\n')) |raw| {
-                std.debug.print("{s}\n", .{raw});
+                if (raw.len == 0) continue;
+                const entry = std.json.parseFromSlice(pretty.LogEntry, allocator, raw, .{}) catch continue;
+                defer entry.deinit();
+                pretty.print(entry.value);
             }
 
             pos = end;

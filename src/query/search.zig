@@ -1,11 +1,7 @@
 const std = @import("std");
+const pretty = @import("../formatter/pretty.zig");
 
-/// Estrutura que espelha cada linha do arquivo JSONL.
-/// `parseFromSlice` mapeia os campos JSON para os campos da struct.
-const LogEntry = struct {
-    ts: i64,
-    msg: []const u8,
-};
+const LogEntry = pretty.LogEntry;
 
 /// Retorna true se `entry.msg` contém `query` (case-sensitive).
 /// Função separada para ser testável sem I/O.
@@ -18,7 +14,7 @@ pub fn matches(entry: LogEntry, query: []const u8) bool {
 pub fn run(allocator: std.mem.Allocator, path: []const u8, query: []const u8) !void {
     const file = std.fs.cwd().openFile(path, .{}) catch |err| switch (err) {
         error.FileNotFound => {
-            std.debug.print("Nenhum log encontrado. Use 'ziglog start' primeiro.\n", .{});
+            pretty.printWarn("Nenhum log encontrado. Use 'ziglog start' primeiro.");
             return;
         },
         else => return err,
@@ -38,13 +34,15 @@ pub fn run(allocator: std.mem.Allocator, path: []const u8, query: []const u8) !v
         defer parsed.deinit();
 
         if (matches(parsed.value, query)) {
-            std.debug.print("[{d}] {s}\n", .{ parsed.value.ts, parsed.value.msg });
+            pretty.print(parsed.value);
             found += 1;
         }
     }
 
     if (found == 0) {
-        std.debug.print("Nenhum resultado para '{s}'.\n", .{query});
+        var msg_buf: [256]u8 = undefined;
+        const msg = std.fmt.bufPrint(&msg_buf, "Nenhum resultado para '{s}'.", .{query}) catch "Nenhum resultado.";
+        pretty.printWarn(msg);
     }
 }
 
