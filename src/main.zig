@@ -1,5 +1,9 @@
 const std = @import("std");
 const parser = @import("cli/parser.zig");
+const writer = @import("storage/writer.zig");
+const ingest = @import("ingest/stdin_reader.zig");
+
+const log_path = "ziglog.jsonl";
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -9,7 +13,6 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    // args[0] é o nome do executável, pulamos ele
     const cmd_args: []const []const u8 = if (args.len > 1) args[1..] else &.{};
 
     const command = parser.parse(cmd_args) catch |err| {
@@ -22,7 +25,11 @@ pub fn main() !void {
     };
 
     switch (command) {
-        .start => std.debug.print("TODO: ingerir logs do stdin\n", .{}),
+        .start => {
+            const log_writer = try writer.LogWriter.open(log_path);
+            defer log_writer.close();
+            try ingest.run(allocator, log_writer);
+        },
         .find => |query| std.debug.print("TODO: buscar '{s}'\n", .{query}),
         .tail => std.debug.print("TODO: seguir logs\n", .{}),
     }
