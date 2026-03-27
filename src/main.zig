@@ -3,6 +3,7 @@ const parser = @import("cli/parser.zig");
 const writer = @import("storage/writer.zig");
 const ingest = @import("ingest/stdin_reader.zig");
 const search = @import("query/search.zig");
+const tailer = @import("tail/tailer.zig");
 
 const log_path = "ziglog.jsonl";
 
@@ -32,6 +33,6 @@ pub fn main() !void {
             try ingest.run(allocator, log_writer);
         },
         .find => |query| try search.run(allocator, log_path, query),
-        .tail => std.debug.print("TODO: seguir logs\n", .{}),
+        .tail => try tailer.run(allocator, log_path),
     }
 }
