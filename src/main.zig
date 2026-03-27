@@ -1,0 +1,29 @@
+const std = @import("std");
+const parser = @import("cli/parser.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    // args[0] é o nome do executável, pulamos ele
+    const cmd_args: []const []const u8 = if (args.len > 1) args[1..] else &.{};
+
+    const command = parser.parse(cmd_args) catch |err| {
+        switch (err) {
+            error.NoCommand => std.debug.print("Uso: ziglog <start|find <query>|tail>\n", .{}),
+            error.UnknownCommand => std.debug.print("Comando desconhecido. Use: start, find, tail\n", .{}),
+            error.MissingArgument => std.debug.print("Argumento faltando. Uso: ziglog find <query>\n", .{}),
+        }
+        std.process.exit(1);
+    };
+
+    switch (command) {
+        .start => std.debug.print("TODO: ingerir logs do stdin\n", .{}),
+        .find => |query| std.debug.print("TODO: buscar '{s}'\n", .{query}),
+        .tail => std.debug.print("TODO: seguir logs\n", .{}),
+    }
+}
