@@ -23,6 +23,7 @@ pub fn main() !void {
             error.UnknownCommand => std.debug.print("Unknown command. Use: start, find, tail\n", .{}),
             error.MissingArgument => std.debug.print("Missing argument. Usage: ziglog find <query>\n", .{}),
             error.InvalidLevel => std.debug.print("Invalid level. Use: trace, debug, info, warn, error, fatal\n", .{}),
+            error.InvalidDuration => std.debug.print("Invalid duration. Use format: 30s, 5m, 1h, 2d\n", .{}),
         }
         std.process.exit(1);
     };
@@ -33,7 +34,7 @@ pub fn main() !void {
             defer log_writer.close();
             try ingest.run(allocator, log_writer, opts.level);
         },
-        .find => |opts| try search.run(allocator, log_path, opts.query, opts.min_level),
+        .find => |opts| try search.run(allocator, log_path, opts.query, opts.min_level, opts.since, opts.until),
         .tail => try tailer.run(allocator, log_path),
     }
 }
