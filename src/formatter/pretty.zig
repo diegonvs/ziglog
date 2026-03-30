@@ -1,6 +1,6 @@
 const std = @import("std");
 
-/// Códigos de escape ANSI para cores no terminal.
+/// ANSI escape codes for terminal colors.
 const reset = "\x1b[0m";
 const dim = "\x1b[2m";
 const red = "\x1b[31m";
@@ -13,16 +13,16 @@ pub const LogEntry = struct {
     msg: []const u8,
 };
 
-/// Formata e imprime uma entrada de log com cores e timestamp legível.
+/// Formats and prints a log entry with colors and a human-readable timestamp.
 ///
-/// Saída: [HH:MM:SS] <mensagem colorida>
-/// A cor da mensagem é escolhida com base em palavras-chave (case-insensitive).
+/// Output: [HH:MM:SS] <colored message>
+/// The message color is chosen based on keywords (case-insensitive).
 pub fn print(entry: LogEntry) void {
     const hms = toHMS(entry.ts);
     const color = levelColor(entry.msg);
     const stdout = std.fs.File.stdout();
     stdout.writeAll(dim) catch return;
-    // std.fmt.bufPrint monta a string no stack sem alocar heap
+    // std.fmt.bufPrint builds the string on the stack without heap allocation
     var time_buf: [16]u8 = undefined;
     const time_str = std.fmt.bufPrint(&time_buf, "[{d:0>2}:{d:0>2}:{d:0>2}]", .{
         hms.h, hms.m, hms.s,
@@ -36,8 +36,8 @@ pub fn print(entry: LogEntry) void {
     stdout.writeAll("\n") catch return;
 }
 
-/// Imprime uma mensagem de sistema (não é uma entrada de log).
-/// Usada para "Aguardando novos logs..." e afins.
+/// Prints a system message (not a log entry).
+/// Used for "Waiting for new logs..." and similar notices.
 pub fn printInfo(msg: []const u8) void {
     const stdout = std.fs.File.stdout();
     stdout.writeAll(dim) catch return;
@@ -46,7 +46,7 @@ pub fn printInfo(msg: []const u8) void {
     stdout.writeAll("\n") catch return;
 }
 
-/// Imprime uma mensagem de aviso/erro do próprio ziglog.
+/// Prints a warning/error message from ziglog itself.
 pub fn printWarn(msg: []const u8) void {
     const stdout = std.fs.File.stdout();
     stdout.writeAll(yellow) catch return;
@@ -55,12 +55,12 @@ pub fn printWarn(msg: []const u8) void {
     stdout.writeAll("\n") catch return;
 }
 
-// --- Funções internas ---
+// --- Internal functions ---
 
 const HMS = struct { h: u5, m: u6, s: u6 };
 
-/// Converte um timestamp Unix (segundos) para hora/minuto/segundo UTC.
-/// Usa `std.time.epoch.EpochSeconds` para decompor o valor.
+/// Converts a Unix timestamp (seconds) to hour/minute/second (UTC).
+/// Uses `std.time.epoch.EpochSeconds` to decompose the value.
 fn toHMS(ts: i64) HMS {
     const secs: u64 = @intCast(@max(0, ts));
     const epoch = std.time.epoch.EpochSeconds{ .secs = secs };
@@ -72,7 +72,7 @@ fn toHMS(ts: i64) HMS {
     };
 }
 
-/// Escolhe a cor ANSI com base em palavras-chave na mensagem.
+/// Picks an ANSI color based on keywords in the message.
 fn levelColor(msg: []const u8) []const u8 {
     if (containsIgnoreCase(msg, "error") or
         containsIgnoreCase(msg, "fatal") or
@@ -87,8 +87,8 @@ fn levelColor(msg: []const u8) []const u8 {
     return reset;
 }
 
-/// Busca `needle` em `haystack` ignorando maiúsculas/minúsculas.
-/// Compara byte a byte com `std.ascii.toLower`.
+/// Searches for `needle` in `haystack` ignoring case.
+/// Compares byte by byte using `std.ascii.toLower`.
 fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
     if (needle.len > haystack.len) return false;
     var i: usize = 0;
@@ -101,71 +101,70 @@ fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
     return false;
 }
 
-test "levelColor detecta error" {
+test "levelColor detects error" {
     try std.testing.expectEqualStrings(bold ++ red, levelColor("error: connection refused"));
     try std.testing.expectEqualStrings(bold ++ red, levelColor("ERROR: disk full"));
 }
 
-test "levelColor detecta warn" {
+test "levelColor detects warn" {
     try std.testing.expectEqualStrings(yellow, levelColor("warn: retry"));
     try std.testing.expectEqualStrings(yellow, levelColor("WARNING: high memory"));
 }
 
-test "levelColor detecta info/start/ready" {
+test "levelColor detects info/start/ready" {
     try std.testing.expectEqualStrings(green, levelColor("server started"));
     try std.testing.expectEqualStrings(green, levelColor("ready to accept connections"));
 }
 
-test "levelColor default sem palavra-chave" {
+test "levelColor default with no keyword" {
     try std.testing.expectEqualStrings(reset, levelColor("something happened"));
 }
 
-test "toHMS converte timestamp corretamente" {
-    // 1970-01-01 00:00:00 UTC
+test "toHMS converts timestamp correctly" {
+    // Unix epoch: 1970-01-01 00:00:00
     const t0 = toHMS(0);
     try std.testing.expectEqual(@as(u5, 0), t0.h);
     try std.testing.expectEqual(@as(u6, 0), t0.m);
     try std.testing.expectEqual(@as(u6, 0), t0.s);
 
-    // 1970-01-01 01:02:03 UTC = 3723 segundos
+    // 1970-01-01 01:02:03 = 3723 seconds
     const t1 = toHMS(3723);
     try std.testing.expectEqual(@as(u5, 1), t1.h);
     try std.testing.expectEqual(@as(u6, 2), t1.m);
     try std.testing.expectEqual(@as(u6, 3), t1.s);
 }
 
-test "toHMS trata timestamp negativo sem pânico" {
-    // timestamps negativos (antes de 1970) não devem causar crash
+test "toHMS handles negative timestamp without panic" {
     const t = toHMS(-1);
-    _ = t; // apenas verificamos que não há @panic ou overflow
+    _ = t;
 }
 
-test "toHMS último segundo do dia (23:59:59 = 86399s)" {
+test "toHMS last second of day (23:59:59 = 86399s)" {
     const t = toHMS(86399);
     try std.testing.expectEqual(@as(u5, 23), t.h);
     try std.testing.expectEqual(@as(u6, 59), t.m);
     try std.testing.expectEqual(@as(u6, 59), t.s);
 }
 
-test "containsIgnoreCase bate substrings parciais" {
+test "containsIgnoreCase matches partial substrings" {
     try std.testing.expect(containsIgnoreCase("FATAL error occurred", "fatal"));
     try std.testing.expect(containsIgnoreCase("FATAL error occurred", "error"));
     try std.testing.expect(containsIgnoreCase("FATAL error occurred", "occurred"));
 }
 
-test "containsIgnoreCase retorna false para needle maior que haystack" {
+test "containsIgnoreCase returns false when needle is longer than haystack" {
     try std.testing.expect(!containsIgnoreCase("hi", "hello"));
 }
 
-test "containsIgnoreCase com strings iguais" {
+test "containsIgnoreCase with equal strings" {
     try std.testing.expect(containsIgnoreCase("error", "error"));
     try std.testing.expect(containsIgnoreCase("ERROR", "error"));
 }
 
-test "levelColor mensagem vazia é default" {
+test "levelColor empty message returns default" {
     try std.testing.expectEqualStrings(reset, levelColor(""));
 }
 
-test "levelColor panic detectado" {
+test "levelColor detects panic" {
     try std.testing.expectEqualStrings(bold ++ red, levelColor("panic: index out of bounds"));
 }

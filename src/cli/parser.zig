@@ -1,10 +1,10 @@
 const std = @import("std");
 
-/// Representa o comando que o usuário passou na linha de comando.
-/// `union(enum)` é um tagged union: cada variante tem um tipo associado.
+/// Represents the command the user passed on the command line.
+/// `union(enum)` is a tagged union: each variant carries its own type.
 pub const Command = union(enum) {
     start,
-    find: []const u8, // carrega a query de busca
+    find: []const u8, // carries the search query
     tail,
 };
 
@@ -14,7 +14,7 @@ pub const ParseError = error{
     MissingArgument,
 };
 
-/// Recebe os argumentos (sem o nome do executável) e retorna o Command.
+/// Receives argv (without the executable name) and returns a Command.
 pub fn parse(args: []const []const u8) ParseError!Command {
     if (args.len == 0) return error.NoCommand;
 
@@ -32,29 +32,29 @@ pub fn parse(args: []const []const u8) ParseError!Command {
     return error.UnknownCommand;
 }
 
-test "parse start" {
+test "parse start command" {
     const cmd = try parse(&.{"start"});
     try std.testing.expectEqual(Command.start, cmd);
 }
 
-test "parse find com query" {
+test "parse find command with query" {
     const cmd = try parse(&.{ "find", "error" });
     try std.testing.expectEqualStrings("error", cmd.find);
 }
 
-test "parse find sem argumento retorna MissingArgument" {
+test "find without argument returns MissingArgument" {
     try std.testing.expectError(error.MissingArgument, parse(&.{"find"}));
 }
 
-test "parse tail" {
+test "parse tail command" {
     const cmd = try parse(&.{"tail"});
     try std.testing.expectEqual(Command.tail, cmd);
 }
 
-test "parse sem argumentos retorna NoCommand" {
+test "no arguments returns NoCommand" {
     try std.testing.expectError(error.NoCommand, parse(&.{}));
 }
 
-test "parse comando desconhecido retorna UnknownCommand" {
+test "unknown command returns UnknownCommand" {
     try std.testing.expectError(error.UnknownCommand, parse(&.{"foo"}));
 }
