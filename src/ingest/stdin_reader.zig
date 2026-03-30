@@ -1,16 +1,16 @@
 const std = @import("std");
 const storage = @import("../storage/writer.zig");
 
-/// Lê linhas do stdin e grava cada uma como entrada de log.
+/// Reads lines from stdin and writes each one as a log entry.
 ///
-/// No Zig 0.15, o reader precisa de um buffer explícito — ele serve como
-/// buffer interno para leituras eficientes (lê blocos do SO em vez de um
-/// byte por vez). `readerStreaming` é usado porque stdin é um stream
-/// sequencial, sem suporte a leitura posicional.
+/// In Zig 0.15, the reader requires an explicit buffer — it serves as
+/// the internal buffer for efficient reads (reads OS blocks instead of
+/// one byte at a time). `readerStreaming` is used because stdin is a
+/// sequential stream with no support for positional reads.
 ///
-/// `takeDelimiter('\n')` retorna:
-///   - uma slice da linha (sem o '\n') enquanto há dados
-///   - `null` quando chega ao EOF sem bytes restantes
+/// `takeDelimiter('\n')` returns:
+///   - a slice of the line (without the '\n') while there is data
+///   - `null` when EOF is reached with no remaining bytes
 pub fn run(allocator: std.mem.Allocator, log_writer: storage.LogWriter) !void {
     var buf: [65536]u8 = undefined;
     var reader = std.fs.File.stdin().readerStreaming(&buf);

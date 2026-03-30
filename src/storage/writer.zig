@@ -1,15 +1,14 @@
 const std = @import("std");
 
-/// Estrutura interna usada para fazer parse das entradas gravadas.
-/// Usada nos testes para verificar o output sem depender do formatter.
+/// Internal struct used to parse written entries back in tests.
 const Entry = struct { ts: i64, msg: []const u8 };
 
 pub const LogWriter = struct {
     file: std.fs.File,
 
-    /// Abre (ou cria) o arquivo de log em modo append.
-    /// `createFile` com `truncate = false` cria o arquivo se não existir,
-    /// ou abre sem apagar o conteúdo se já existir.
+    /// Opens (or creates) the log file in append mode.
+    /// `createFile` with `truncate = false` creates the file if it does not
+    /// exist, or opens it without clearing its contents if it already does.
     pub fn open(path: []const u8) !LogWriter {
         const file = try std.fs.cwd().createFile(path, .{ .truncate = false });
         try file.seekFromEnd(0);
@@ -20,11 +19,11 @@ pub const LogWriter = struct {
         self.file.close();
     }
 
-    /// Serializa a mensagem como uma linha JSON e grava no arquivo.
-    /// Exemplo de saída: {"ts":1234567890,"msg":"hello world"}
+    /// Serializes the message as a JSON line and writes it to the file.
+    /// Example output: {"ts":1234567890,"msg":"server started"}
     ///
-    /// `valueAlloc` serializa o valor para uma string JSON alocada em memória.
-    /// `file.writeAll` grava os bytes diretamente no arquivo.
+    /// `valueAlloc` serializes the value to a heap-allocated JSON string.
+    /// `file.writeAll` writes the bytes directly to the file.
     pub fn writeEntry(self: LogWriter, allocator: std.mem.Allocator, message: []const u8) !void {
         const ts = std.time.timestamp();
         const json = try std.json.Stringify.valueAlloc(allocator, .{ .ts = ts, .msg = message }, .{});
@@ -34,14 +33,14 @@ pub const LogWriter = struct {
     }
 };
 
-// --- Testes ---
+// --- Tests ---
 //
-// `std.testing.tmpDir(.{})` cria um directório temporário isolado em
-// `.zig-cache/tmp/<hash>/`. Como `LogWriter.file` é público, podemos
-// construir o struct directamente com um handle do tmp dir, sem
-// depender de `cwd()`.
+// `std.testing.tmpDir(.{})` creates an isolated temporary directory under
+// `.zig-cache/tmp/<hash>/`, cleaned up automatically on `tmp.cleanup()`.
+// We construct `LogWriter` directly via the public `file` field so we can
+// point it at a file inside the temp dir without going through `cwd()`.
 
-test "writeEntry produz JSON com campo msg correcto" {
+test "writeEntry produces JSON with correct msg field" {
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
@@ -65,7 +64,7 @@ test "writeEntry produz JSON com campo msg correcto" {
     try std.testing.expect(parsed.value.ts > 0);
 }
 
-test "writeEntry escapa caracteres especiais em JSON" {
+test "writeEntry escapes special characters in JSON" {
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
@@ -74,7 +73,7 @@ test "writeEntry escapa caracteres especiais em JSON" {
         const file = try tmp.dir.createFile("log.jsonl", .{});
         const lw = LogWriter{ .file = file };
         defer lw.close();
-        try lw.writeEntry(allocator, "msg com \"aspas\" e \\barra");
+        try lw.writeEntry(allocator, "msg with \"quotes\" and \\backslash");
     }
 
     const file = try tmp.dir.openFile("log.jsonl", .{});
@@ -85,11 +84,11 @@ test "writeEntry escapa caracteres especiais em JSON" {
 
     const parsed = try std.json.parseFromSlice(Entry, allocator, line, .{});
     defer parsed.deinit();
-    // std.json.parseFromSlice faz unescape — recuperamos a string original
-    try std.testing.expectEqualStrings("msg com \"aspas\" e \\barra", parsed.value.msg);
+    // std.json.parseFromSlice unescapes — we recover the original string
+    try std.testing.expectEqualStrings("msg with \"quotes\" and \\backslash", parsed.value.msg);
 }
 
-test "writeEntry acumula múltiplas entradas (modo append)" {
+test "writeEntry accumulates multiple entries (append mode)" {
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
@@ -98,9 +97,9 @@ test "writeEntry acumula múltiplas entradas (modo append)" {
         const file = try tmp.dir.createFile("log.jsonl", .{});
         const lw = LogWriter{ .file = file };
         defer lw.close();
-        try lw.writeEntry(allocator, "primeira");
-        try lw.writeEntry(allocator, "segunda");
-        try lw.writeEntry(allocator, "terceira");
+        try lw.writeEntry(allocator, "first");
+        try lw.writeEntry(allocator, "second");
+        try lw.writeEntry(allocator, "third");
     }
 
     const file = try tmp.dir.openFile("log.jsonl", .{});

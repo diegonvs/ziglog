@@ -19,9 +19,9 @@ pub fn main() !void {
 
     const command = parser.parse(cmd_args) catch |err| {
         switch (err) {
-            error.NoCommand => std.debug.print("Uso: ziglog <start|find <query>|tail>\n", .{}),
-            error.UnknownCommand => std.debug.print("Comando desconhecido. Use: start, find, tail\n", .{}),
-            error.MissingArgument => std.debug.print("Argumento faltando. Uso: ziglog find <query>\n", .{}),
+            error.NoCommand => std.debug.print("Usage: ziglog <start|find <query>|tail>\n", .{}),
+            error.UnknownCommand => std.debug.print("Unknown command. Use: start, find, tail\n", .{}),
+            error.MissingArgument => std.debug.print("Missing argument. Usage: ziglog find <query>\n", .{}),
         }
         std.process.exit(1);
     };

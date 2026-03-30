@@ -2,26 +2,35 @@ const std = @import("std");
 const builtin = @import("builtin");
 const pretty = @import("../formatter/pretty.zig");
 
+/// Polling interval in nanoseconds (250ms).
 const poll_interval_ns: u64 = 250 * std.time.ns_per_ms;
 
+/// Watches the log file and prints new lines as they arrive.
+///
+/// Polling strategy:
+/// 1. Advances to the end of the file on open (does not replay history)
+/// 2. Every 250ms checks whether the file size has grown
+/// 3. Reads the new bytes and prints them line by line
+///
+/// `std.Thread.sleep` suspends the thread for the interval without consuming CPU.
 pub fn run(allocator: std.mem.Allocator, path: []const u8) !void {
     const file = std.fs.cwd().openFile(path, .{}) catch |err| switch (err) {
         error.FileNotFound => {
-            pretty.printWarn("Nenhum log encontrado. Use 'ziglog start' primeiro.");
+            pretty.printWarn("No logs found. Use 'ziglog start' first.");
             return;
         },
         else => return err,
     };
     defer file.close();
 
-    // Começa no fim — não relê o histórico.
+    // Start at end of file — do not replay history
     var pos = try file.getEndPos();
 
-    pretty.printInfo("Aguardando novos logs...");
+    pretty.printInfo("Waiting for new logs...");
 
-    // `builtin.os.tag` é um valor comptime: Zig elimina os branches
-    // não tomados sem sequer fazer type-check deles. Cada plataforma
-    // compila apenas o mecanismo que ela suporta.
+    // `builtin.os.tag` is a comptime value: Zig eliminates non-taken branches
+    // without even type-checking them. Each platform compiles only the mechanism
+    // it supports.
     if (builtin.os.tag == .macos or builtin.os.tag == .ios or
         builtin.os.tag == .tvos or builtin.os.tag == .watchos)
     {
@@ -33,14 +42,14 @@ pub fn run(allocator: std.mem.Allocator, path: []const u8) !void {
     }
 }
 
-/// Lê e imprime os bytes novos desde `pos.*`.
-/// Chamada por todos os mecanismos de watch após receberem uma notificação.
+/// Reads and prints new bytes since `pos.*`.
+/// Called by all watch mechanisms after receiving a notification.
 fn readNew(allocator: std.mem.Allocator, file: std.fs.File, pos: *u64) !void {
     const end = try file.getEndPos();
     if (end <= pos.*) return;
 
-    // Garante que o reader começa na posição correcta,
-    // independente do que tenha acontecido antes.
+    // Ensure the reader starts at the correct position,
+    // regardless of what happened before.
     try file.seekTo(pos.*);
 
     var buf: [65536]u8 = undefined;
@@ -54,17 +63,17 @@ fn readNew(allocator: std.mem.Allocator, file: std.fs.File, pos: *u64) !void {
     pos.* = end;
 }
 
-/// macOS/BSD: kqueue — mecanismo de notificação do kernel.
-/// `EVFILT_VNODE` + `NOTE_WRITE` notifica quando o arquivo é escrito.
-/// `EV_CLEAR` limpa o estado do evento depois de cada entrega,
-/// evitando notificações duplicadas.
-/// A chamada `kevent(..., null)` bloqueia a thread sem consumir CPU
-/// até que o kernel entregue um evento.
+/// macOS/BSD: kqueue — kernel event notification mechanism.
+/// `EVFILT_VNODE` + `NOTE_WRITE` notifies when the file is written.
+/// `EV_CLEAR` clears the event state after each delivery,
+/// preventing duplicate notifications.
+/// The `kevent(..., null)` call blocks the thread without consuming CPU
+/// until the kernel delivers an event.
 fn watchKqueue(allocator: std.mem.Allocator, file: std.fs.File, pos: *u64) !void {
     const kq = try std.posix.kqueue();
     defer std.posix.close(kq);
 
-    // Regista o interesse: queremos saber quando o arquivo for escrito.
+    // Register interest: we want to know when the file is written.
     const change = std.posix.Kevent{
         .ident = @intCast(file.handle),
         .filter = std.c.EVFILT.VNODE,
@@ -77,22 +86,22 @@ fn watchKqueue(allocator: std.mem.Allocator, file: std.fs.File, pos: *u64) !void
 
     var events: [1]std.posix.Kevent = undefined;
     while (true) {
-        // Bloqueia até o kernel notificar uma mudança no arquivo.
+        // Block until the kernel notifies a change in the file.
         const n = try std.posix.kevent(kq, &.{}, &events, null);
         if (n == 0) continue;
         try readNew(allocator, file, pos);
     }
 }
 
-/// Linux: inotify — subsistema de notificação de eventos de ficheiros.
-/// `IN.MODIFY` notifica quando o conteúdo do arquivo muda.
-/// `read` no fd do inotify bloqueia até haver eventos.
+/// Linux: inotify — file event notification subsystem.
+/// `IN.MODIFY` notifies when the file content changes.
+/// `read` on the inotify fd blocks until events are available.
 fn watchInotify(allocator: std.mem.Allocator, file: std.fs.File, path: []const u8, pos: *u64) !void {
     const ifd = try std.posix.inotify_init1(0);
     defer std.posix.close(ifd);
     _ = try std.posix.inotify_add_watch(ifd, path, std.os.linux.IN.MODIFY);
 
-    // Buffer alinhado para inotify_event structs.
+    // Aligned buffer for inotify_event structs.
     var buf: [4096]u8 align(4) = undefined;
     while (true) {
         _ = try std.posix.read(ifd, &buf);
@@ -100,7 +109,7 @@ fn watchInotify(allocator: std.mem.Allocator, file: std.fs.File, path: []const u
     }
 }
 
-/// Fallback para outros sistemas: polling a cada 250ms.
+/// Fallback for other systems: polling every 250ms.
 fn watchPoll(allocator: std.mem.Allocator, file: std.fs.File, pos: *u64) !void {
     while (true) {
         try readNew(allocator, file, pos);
