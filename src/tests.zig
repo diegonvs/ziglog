@@ -6,4 +6,5 @@ comptime {
     _ = @import("storage/writer.zig");
     _ = @import("query/search.zig");
     _ = @import("formatter/pretty.zig");
+    _ = @import("time/duration.zig");
 }
