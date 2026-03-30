@@ -22,17 +22,18 @@ pub fn main() !void {
             error.NoCommand => std.debug.print("Usage: ziglog <start|find <query>|tail>\n", .{}),
             error.UnknownCommand => std.debug.print("Unknown command. Use: start, find, tail\n", .{}),
             error.MissingArgument => std.debug.print("Missing argument. Usage: ziglog find <query>\n", .{}),
+            error.InvalidLevel => std.debug.print("Invalid level. Use: trace, debug, info, warn, error, fatal\n", .{}),
         }
         std.process.exit(1);
     };
 
     switch (command) {
-        .start => {
+        .start => |opts| {
             const log_writer = try writer.LogWriter.open(log_path);
             defer log_writer.close();
-            try ingest.run(allocator, log_writer);
+            try ingest.run(allocator, log_writer, opts.level);
         },
-        .find => |query| try search.run(allocator, log_path, query),
+        .find => |opts| try search.run(allocator, log_path, opts.query, opts.min_level),
         .tail => try tailer.run(allocator, log_path),
     }
 }

@@ -7,9 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `ziglog` is a CLI tool for ingesting, searching, and streaming logs, built in Zig. The MVP exposes three commands:
 
 ```bash
-node app.js | ziglog start   # ingest logs from stdin
-ziglog find error            # search logs by text
-ziglog tail                  # stream logs in real time
+node app.js | ziglog start                    # ingest logs from stdin (default level: info)
+node app.js | ziglog start --level warn       # ingest with explicit level
+ziglog find error                             # search logs by text
+ziglog find error --level warn                # search logs at warn level or above
+ziglog tail                                   # stream logs in real time
 ```
 
 Logs are stored as append-only JSONL files at `ziglog.jsonl` in the working directory.
@@ -39,15 +41,19 @@ CLI (main.zig) → parser.zig
                │           │
           storage/      formatter/
       writer+reader      pretty.zig
+               │           │
+               └─────┬─────┘
+                 level.zig
 ```
 
 - `src/main.zig` — entry point; routes subcommands to modules
-- `src/cli/parser.zig` — parses argv into a tagged union of commands
-- `src/ingest/stdin_reader.zig` — reads lines from stdin, wraps in JSON, delegates to storage writer
-- `src/storage/writer.zig` — append-only JSONL log file operations
-- `src/query/search.zig` — reads storage and filters by substring match; exposes `countMatches` for testability
+- `src/cli/parser.zig` — parses argv into a tagged union of commands; `start` yields `StartOptions{level}`, `find` yields `FindOptions{query, min_level}`
+- `src/level.zig` — `Level` enum (trace=10, debug=20, info=30, warn=40, err=50, fatal=60) with `fromString`, `fromValue`, `label`, `value` helpers
+- `src/ingest/stdin_reader.zig` — reads lines from stdin, wraps in JSON with level, delegates to storage writer
+- `src/storage/writer.zig` — append-only JSONL log file operations; each entry: `{"ts":<unix_s>,"level":<u8>,"msg":"..."}`
+- `src/query/search.zig` — reads storage and filters by substring match and minimum level; exposes `countMatches` for testability
 - `src/tail/tailer.zig` — watches the log file and streams new entries; uses kqueue (macOS), inotify (Linux), or polling fallback
-- `src/formatter/pretty.zig` — formats log entries with ANSI colors for terminal output
+- `src/formatter/pretty.zig` — formats log entries with ANSI colors and level label (`INFO `, `WARN `, `ERROR`, etc.) for terminal output
 
 ## Zig conventions used in this project
 
@@ -64,7 +70,7 @@ CLI (main.zig) → parser.zig
 - One PR per feature/task, targeting `upstream` (GitHub remote).
 - Commit messages follow **Conventional Commits** format (`feat:`, `fix:`, `chore:`, `test:`, etc.).
 - Use `/commit` skill to create commits and `/pr-create` skill to open PRs.
-- All comments and test names are in English.
+- All code, comments, test names, error messages, and user-facing strings must be written in English.
 
 ## CI
 
