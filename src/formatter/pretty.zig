@@ -133,3 +133,39 @@ test "toHMS converte timestamp corretamente" {
     try std.testing.expectEqual(@as(u6, 2), t1.m);
     try std.testing.expectEqual(@as(u6, 3), t1.s);
 }
+
+test "toHMS trata timestamp negativo sem pânico" {
+    // timestamps negativos (antes de 1970) não devem causar crash
+    const t = toHMS(-1);
+    _ = t; // apenas verificamos que não há @panic ou overflow
+}
+
+test "toHMS último segundo do dia (23:59:59 = 86399s)" {
+    const t = toHMS(86399);
+    try std.testing.expectEqual(@as(u5, 23), t.h);
+    try std.testing.expectEqual(@as(u6, 59), t.m);
+    try std.testing.expectEqual(@as(u6, 59), t.s);
+}
+
+test "containsIgnoreCase bate substrings parciais" {
+    try std.testing.expect(containsIgnoreCase("FATAL error occurred", "fatal"));
+    try std.testing.expect(containsIgnoreCase("FATAL error occurred", "error"));
+    try std.testing.expect(containsIgnoreCase("FATAL error occurred", "occurred"));
+}
+
+test "containsIgnoreCase retorna false para needle maior que haystack" {
+    try std.testing.expect(!containsIgnoreCase("hi", "hello"));
+}
+
+test "containsIgnoreCase com strings iguais" {
+    try std.testing.expect(containsIgnoreCase("error", "error"));
+    try std.testing.expect(containsIgnoreCase("ERROR", "error"));
+}
+
+test "levelColor mensagem vazia é default" {
+    try std.testing.expectEqualStrings(reset, levelColor(""));
+}
+
+test "levelColor panic detectado" {
+    try std.testing.expectEqualStrings(bold ++ red, levelColor("panic: index out of bounds"));
+}
